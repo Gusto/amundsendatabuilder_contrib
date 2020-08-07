@@ -1,8 +1,11 @@
+# Copyright Contributors to the Amundsen project.
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 from setuptools import setup, find_packages
 
 
-__version__ = '2.6.4'
+__version__ = '2.6.5'
 
 requirements_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'requirements.txt')
 with open(requirements_path) as requirements_file:

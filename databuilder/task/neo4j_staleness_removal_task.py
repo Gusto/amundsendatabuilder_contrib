@@ -5,15 +5,14 @@ import logging
 import textwrap
 import time
 
-from neo4j import GraphDatabase  # noqa: F401
+from neo4j import GraphDatabase
 import neo4j
-from pyhocon import ConfigFactory  # noqa: F401
-from pyhocon import ConfigTree  # noqa: F401
-from typing import Dict, Iterable, Any  # noqa: F401
+from pyhocon import ConfigFactory, ConfigTree
+from typing import Any, Dict, Iterable
 
 from databuilder import Scoped
 from databuilder.publisher.neo4j_csv_publisher import JOB_PUBLISH_TAG
-from databuilder.task.base_task import Task  # noqa: F401
+from databuilder.task.base_task import Task
 
 # A end point for Neo4j e.g: bolt://localhost:9999
 NEO4J_END_POINT_KEY = 'neo4j_endpoint'
@@ -63,16 +62,13 @@ class Neo4jStalenessRemovalTask(Task):
 
     """
 
-    def __init__(self):
-        # type: () -> None
+    def __init__(self) -> None:
         pass
 
-    def get_scope(self):
-        # type: () -> str
+    def get_scope(self) -> str:
         return 'task.remove_stale_data'
 
-    def init(self, conf):
-        # type: (ConfigTree) -> None
+    def init(self, conf: ConfigTree) -> None:
         conf = Scoped.get_scoped_conf(conf, self.get_scope()) \
             .with_fallback(conf) \
             .with_fallback(DEFAULT_CONFIG)
@@ -104,8 +100,7 @@ class Neo4jStalenessRemovalTask(Task):
                                  encrypted=conf.get_bool(NEO4J_ENCRYPTED),
                                  trust=trust)
 
-    def run(self):
-        # type: () -> None
+    def run(self) -> None:
         """
         First, performs a safety check to make sure this operation would not delete more than a threshold where
         default threshold is 5%. Once it passes a safety check, it will first delete stale nodes, and then stale
@@ -116,17 +111,16 @@ class Neo4jStalenessRemovalTask(Task):
         self._delete_stale_nodes()
         self._delete_stale_relations()
 
-    def validate(self):
+    def validate(self) -> None:
         """
         Validation method. Focused on limit the risk on deleting nodes and relations.
          - Check if deleted nodes will be within 10% of total nodes.
         :return:
         """
-        # type: () -> None
         self._validate_node_staleness_pct()
         self._validate_relation_staleness_pct()
 
-    def _delete_stale_nodes(self):
+    def _delete_stale_nodes(self) -> None:
         statement = textwrap.dedent("""
         MATCH (n:{{type}})
         WHERE {}
@@ -136,7 +130,9 @@ class Neo4jStalenessRemovalTask(Task):
         """)
         self._batch_delete(statement=self._decorate_staleness(statement), targets=self.target_nodes)
 
-    def _decorate_staleness(self, statement):
+    def _decorate_staleness(self,
+                            statement: str
+                            ) -> str:
         """
         Append where clause to the Cypher statement depends on which field to be used to expire stale data.
         :param statement:
@@ -151,7 +147,7 @@ class Neo4jStalenessRemovalTask(Task):
         n.published_tag <> ${marker}
         OR NOT EXISTS(n.published_tag)""".format(marker=MARKER_VAR_NAME)))
 
-    def _delete_stale_relations(self):
+    def _delete_stale_relations(self) -> None:
         statement = textwrap.dedent("""
         MATCH ()-[n:{{type}}]-()
         WHERE {}
@@ -161,7 +157,10 @@ class Neo4jStalenessRemovalTask(Task):
         """)
         self._batch_delete(statement=self._decorate_staleness(statement), targets=self.target_relations)
 
-    def _batch_delete(self, statement, targets):
+    def _batch_delete(self,
+                      statement: str,
+                      targets: Iterable[str]
+                      ) -> None:
         """
         Performing huge amount of deletion could degrade Neo4j performance. Therefore, it's taking batch deletion here.
         :param statement:
@@ -183,9 +182,11 @@ class Neo4jStalenessRemovalTask(Task):
                     break
             LOGGER.info('Deleted {} stale data of {}'.format(total_count, t))
 
-    def _validate_staleness_pct(self, total_records, stale_records, types):
-        # type: (Iterable[Dict[str, Any]], Iterable[Dict[str, Any]], Iterable[str]) -> None
-
+    def _validate_staleness_pct(self,
+                                total_records: Iterable[Dict[str, Any]],
+                                stale_records: Iterable[Dict[str, Any]],
+                                types: Iterable[str]
+                                ) -> None:
         total_count_dict = {record['type']: int(record['count']) for record in total_records}
 
         for record in stale_records:
@@ -205,9 +206,7 @@ class Neo4jStalenessRemovalTask(Task):
                 raise Exception('Staleness percentage of {} is {} %. Stopping due to over threshold {} %'
                                 .format(type_str, stale_pct, threshold))
 
-    def _validate_node_staleness_pct(self):
-        # type: () -> None
-
+    def _validate_node_staleness_pct(self) -> None:
         total_nodes_statement = textwrap.dedent("""
         MATCH (n)
         WITH DISTINCT labels(n) as node, count(*) as count
@@ -230,8 +229,7 @@ class Neo4jStalenessRemovalTask(Task):
                                      stale_records=stale_records,
                                      types=self.target_nodes)
 
-    def _validate_relation_staleness_pct(self):
-        # type: () -> None
+    def _validate_relation_staleness_pct(self) -> None:
         total_relations_statement = textwrap.dedent("""
         MATCH ()-[r]-()
         RETURN type(r) as type, count(*) as count;
@@ -252,8 +250,11 @@ class Neo4jStalenessRemovalTask(Task):
                                      stale_records=stale_records,
                                      types=self.target_relations)
 
-    def _execute_cypher_query(self, statement, param_dict={}, dry_run=False):
-        # type: (str, Dict[str, Any]) -> Iterable[Dict[str, Any]]
+    def _execute_cypher_query(self,
+                              statement: str,
+                              param_dict: Dict[str, Any]={},
+                              dry_run: bool=False
+                              ) -> Iterable[Dict[str, Any]]:
         LOGGER.info('Executing Cypher query: {statement} with params {params}: '.format(statement=statement,
                                                                                         params=param_dict))
 
